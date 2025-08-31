@@ -29,7 +29,12 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
+            print("Validation Error: Password fields didn't match.")  # <--- Added print statement
             raise serializers.ValidationError({"password": "Password fields didn't match."})
+        
+        # Add a print statement to show the data being validated
+        print("Data being validated:", attrs)
+        
         return attrs
 
     def create(self, validated_data):
@@ -43,11 +48,32 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.save()
         return user
 
+# authentication/serializers.py
+from rest_framework import serializers
+from django.contrib.auth.models import User
+
 class UserSerializer(serializers.ModelSerializer):
-    """
-    Serializer for returning user profile data.
-    """
+    name = serializers.SerializerMethodField()
+    avatar = serializers.SerializerMethodField()
+    isOnline = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name')
+        fields = ("id", "email", "name", "avatar", "isOnline")
+
+    def get_name(self, obj):
+        # If first and last name available, use them
+        if obj.first_name or obj.last_name:
+            return f"{obj.first_name} {obj.last_name}".strip()
+        # Otherwise fallback to username
+        return obj.username
+
+    def get_avatar(self, obj):
+        # Example: Use dicebear avatar generator from username
+        return f"https://api.dicebear.com/6.x/initials/svg?seed={obj.username}"
+
+    def get_isOnline(self, obj):
+        # Always False for now, can connect with WebSocket/Redis later
+        return False
+
 

@@ -4,20 +4,30 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.contrib.auth.models import User
 from .serializers import RegisterSerializer, UserSerializer
 
 
-class RegisterView(generics.CreateAPIView):
-    """
-    API endpoint for user registration.
-    Allows unauthenticated users to create a new account.
-    """
-    queryset = User.objects.all()
-    permission_classes = (AllowAny,) # Allow anyone to register
-    serializer_class = RegisterSerializer
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from .serializers import RegisterSerializer
+
+class RegisterView(APIView):
+    permission_classes = [AllowAny] 
+    def post(self, request, *args, **kwargs):
+        serializer = RegisterSerializer(data=request.data)
+        print( "Here")
+        if serializer.is_valid():
+            user = serializer.save()
+            # Handle successful registration
+            return Response({"user": "created"}, status=status.HTTP_201_CREATED)
+        
+        # This is where the errors are returned
+        print(serializer.errors , "Here 2")
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class UserProfileView(generics.RetrieveAPIView):
     """
@@ -32,23 +42,15 @@ class UserProfileView(generics.RetrieveAPIView):
         return self.request.user
 
 class LogoutView(APIView):
-    """
-    API endpoint for user logout.
-    Blacklists the refresh token to invalidate it.
-    """
-    permission_classes = (IsAuthenticated,) # Only authenticated users can logout
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         try:
-            # Get the refresh token from the request data
-            # In a real app, the frontend would send the refresh token to be blacklisted
-            # For simple_jwt, blacklisting is usually done on the refresh token
-            # The access token is short-lived and doesn't need explicit invalidation server-side
             refresh_token = request.data["refresh_token"]
             token = RefreshToken(refresh_token)
-            token.blacklist() # Blacklist the refresh token
-
+            token.blacklist()
             return Response(status=status.HTTP_205_RESET_CONTENT)
-        except Exception as e:
-            return Response(status=status.HTTP_400_BAD_REQUEST, data={'detail': str(e)})
-
+        except KeyError:
+            return Response({"detail": "refresh_token required"}, status=status.HTTP_400_BAD_REQUEST)
+        except TokenError:
+            return Response({"detail": "Invalid or expired refresh token"}, status=status.HTTP_400_BAD_REQUEST)
